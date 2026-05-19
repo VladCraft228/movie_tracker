@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="uk" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Мій Кіно-трекер</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #141414; color: #e5e5e5; padding: 20px; margin: 0; }
+        h1, h2 { color: #fff; }
+        .container { max-width: 1200px; margin: 0 auto; }
+
+        /* Блок пошуку */
+        .search-box { background: #222; padding: 20px; border-radius: 8px; margin-bottom: 30px; display: flex; gap: 10px; align-items: center; }
+        input[type="text"] { flex-grow: 1; padding: 12px; border-radius: 4px; border: none; background: #333; color: white; font-size: 16px; }
+        button { padding: 12px 20px; border: none; border-radius: 4px; background-color: #e50914; color: white; cursor: pointer; font-size: 16px; font-weight: bold; }
+        button:hover { background-color: #f40612; }
+        select { padding: 10px; background: #333; color: white; border: none; border-radius: 4px; }
+
+        /* Сітка фільмів */
+        .movies-grid {
+            display: flex; /* Змінили grid на flex для горизонталі */
+            gap: 20px;
+            margin-bottom: 20px;
+            overflow-x: auto; /* Додаємо горизонтальний скрол */
+            padding-bottom: 15px; /* Місце для красивого повзунка */
+            scroll-snap-type: x mandatory; /* Плавне "прилипання" карток */
+            scroll-behavior: smooth;
+        }
+
+        .movie-card {
+            flex: 0 0 220px; /* Картка має фіксовану ширину і не стискається */
+            scroll-snap-align: start; /* Точка прилипання під час скролу */
+            background: #222;
+            border-radius: 8px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.2s;
+        }
+        .movie-card:hover { transform: scale(1.02); }
+        .movie-poster { width: 100%; height: 330px; object-fit: cover; }
+        .movie-info { padding: 15px; flex-grow: 1; display: flex; flex-direction: column; justify-content: space-between; }
+        .movie-title { font-size: 16px; font-weight: bold; margin: 0 0 10px 0; }
+        .movie-rating { color: #f5c518; font-weight: bold; margin-bottom: 10px; }
+
+        /* Стилізація самого повзунка (щоб він був червоним і красивим, а не стандартним сірим) */
+        .movies-grid::-webkit-scrollbar { height: 8px; }
+        .movies-grid::-webkit-scrollbar-track { background: #1f1f1f; border-radius: 4px; }
+        .movies-grid::-webkit-scrollbar-thumb { background: #e50914; border-radius: 4px; }
+        .movies-grid::-webkit-scrollbar-thumb:hover { background: #f40612; }
+
+        /* Колекції */
+        .collection-section { background: #1f1f1f; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 5px solid #e50914; }
+    </style>
+</head>
+<body>
+<div class="container">
+
+    <h1>🎬 Мій Кіно-трекер</h1>
+    <div th:if="${param.error != null && param.error[0] == 'duplicate'}"
+         style="background-color: #e50914; color: white; padding: 15px; border-radius: 4px; margin-bottom: 20px; font-weight: bold; text-align: center;">
+        ⚠️ Цей фільм уже додано до обраної колекції!
+    </div>
+    <div class="search-box">
+        <form action="/collections/add" method="post" style="display: flex; gap: 10px; width: 100%;">
+            <input type="text" name="name" placeholder="Створити нову колекцію (напр. Хочу подивитися)" required>
+            <button type="submit">+ Створити</button>
+        </form>
+    </div>
+
+    <div class="search-box">
+        <form action="/" method="get" style="display: flex; gap: 10px; width: 100%;">
+            <input type="text" name="query" placeholder="Знайти фільм (напр. Інтерстеллар, Матриця)..." required>
+            <button type="submit">🔍 Шукати</button>
+        </form>
+    </div>
+
+    <div th:if="${searchResults != null}">
+        <h2>Результати пошуку:</h2>
+        <div class="movies-grid">
+            <div th:each="movie : ${searchResults}" class="movie-card">
+
+                <a th:href="@{/movies/details/{id}(id=${movie.id})}" style="text-decoration: none; color: inherit;">
+                    <img class="movie-poster" th:src="${movie.posterPath != null ? 'https://image.tmdb.org/t/p/w500' + movie.posterPath : 'https://via.placeholder.com/500x750?text=No+Poster'}">
+                </a>
+
+                <div class="movie-info">
+                    <div>
+                        <a th:href="@{/movies/details/{id}(id=${movie.id})}" style="text-decoration: none; color: white;">
+                            <h3 class="movie-title" style="cursor: pointer;" th:text="${movie.title}">Назва</h3>
+                        </a>
+                        <div class="movie-rating">⭐ <span th:text="${movie.rating}">8.5</span>/10</div>
+                        <p style="font-size: 12px; color: #aaa;" th:text="${#strings.abbreviate(movie.overview, 100)}"></p>
+                    </div>
+
+                    <form action="/movies/save" method="post" style="margin-top: 10px; display: flex; flex-direction: column; gap: 5px;">
+                        <input type="hidden" name="tmdbId" th:value="${movie.id}">
+
+                        <select name="collectionId" required>
+                            <option value="" disabled selected>Оберіть колекцію...</option>
+                            <option th:each="col : ${collections}" th:value="${col.id}" th:text="${col.name}"></option>
+                        </select>
+                        <button type="submit" style="width: 100%; padding: 8px;">Зберегти</button>
+                    </form>
+                </div>
+            </div>
+            <p th:if="${#lists.isEmpty(searchResults)}">Нічого не знайдено.</p>
+        </div>
+    </div>
+
+    <hr style="border-color: #333; margin: 40px 0;">
+
+    <div style="margin-bottom: 30px; background: #222; padding: 20px; border-radius: 8px; border: 1px solid #333;">
+        <form action="/" method="get" style="display: flex; gap: 20px; align-items: end; flex-wrap: wrap;">
+
+            <div style="display: flex; flex-direction: column; gap: 5px;">
+                <label style="font-size: 14px; color: #aaa; font-weight: bold;">Пошук у збережених:</label>
+                <input type="text" name="filter" th:value="${currentFilter}" placeholder="Введіть назву фільму..."
+                       style="padding: 10px; background: #333; color: white; border: 1px solid #555; border-radius: 4px; width: 250px; font-size: 14px;">
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 5px;">
+                <label style="font-size: 14px; color: #aaa; font-weight: bold;">Сортувати за:</label>
+                <select name="sortBy" style="padding: 10px; background: #333; color: white; border: 1px solid #555; border-radius: 4px; font-size: 14px; cursor: pointer;">
+                    <option value="rating" th:selected="${currentSort == 'rating'}">📊 Рейтингом TMDB (Найвищий -> Найнижчий)</option>
+                    <option value="title" th:selected="${currentSort == 'title'}">🔤 Назвою (А-Я)</option>
+                </select>
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button type="submit" style="background-color: #e50914; padding: 10px 20px; font-size: 14px;">Застосувати фільтри</button>
+
+                <a href="/" style="display: inline-block; padding: 10px 15px; background: #444; color: white; text-decoration: none; border-radius: 4px; font-size: 14px; font-weight: bold;">❌ Скинути</a>
+            </div>
+        </form>
+    </div>
+
+    <h2>Мої збережені фільми</h2>
+
+    <div th:each="col : ${collections}" class="collection-section">
+
+        <div th:id="'title-box-' + ${col.id}" style="display: flex; align-items: center; gap: 15px; margin-bottom: 20px;">
+            <h3 th:text="${col.name}" style="margin: 0; font-size: 24px;">Назва колекції</h3>
+
+            <div style="display: flex; gap: 5px;">
+                <button th:onclick="'toggleEdit(' + ${col.id} + ')'" style="background: none; border: none; font-size: 20px; cursor: pointer;" title="Редагувати назву">✏️</button>
+
+                <form th:action="@{/collections/delete/{id}(id=${col.id})}" method="post" onsubmit="return confirm('Ви впевнені? Це назавжди видалить колекцію ТА ВСІ фільми всередині неї!');" style="margin: 0;">
+                    <button type="submit" style="background: none; border: none; font-size: 20px; cursor: pointer;" title="Видалити колекцію">🗑️</button>
+                </form>
+            </div>
+        </div>
+
+        <div th:id="'edit-box-' + ${col.id}" style="display: none; margin-bottom: 20px; gap: 10px; align-items: center;">
+            <form th:action="@{/collections/update/{id}(id=${col.id})}" method="post" style="display: flex; gap: 10px; align-items: center;">
+                <input type="text" name="newName" th:value="${col.name}" required
+                       style="font-size: 18px; font-weight: bold; background: #333; color: white; border: 1px solid #555; padding: 5px 10px; border-radius: 4px;">
+                <button type="submit" style="background-color: #28a745; padding: 8px 15px; font-size: 14px;">Зберегти</button>
+                <button type="button" th:onclick="'toggleEdit(' + ${col.id} + ')'" style="background-color: #555; padding: 8px 15px; font-size: 14px;">Скасувати</button>
+            </form>
+        </div>
+
+        <div class="movies-grid" style="margin-top: 20px;">
+            <div th:each="saved : ${col.movies}" class="movie-card">
+                <a th:href="@{/movies/details/{id}(id=${saved.tmdbId})}">
+                    <img class="movie-poster" th:src="${saved.posterUrl}">
+                </a>
+                <div class="movie-info">
+                    <a th:href="@{/movies/details/{id}(id=${saved.tmdbId})}" style="text-decoration: none; color: white;">
+                        <h3 class="movie-title" th:text="${saved.title}">Назва</h3>
+                    </a>
+
+                    <div class="movie-rating">⭐ <span th:text="${saved.tmdbRating}">8.5</span>/10</div>
+
+                    <div style="background: #2a2a2a; padding: 8px; border-radius: 6px; margin: 10px 0; font-size: 13px;">
+                        <div style="margin-bottom: 5px;">
+                            <span th:if="${saved.userRating != null}">
+                                ❤️ Моя оцінка: <strong th:text="${saved.userRating}" style="color: #28a745;">10</strong>/10
+                            </span>
+                            <span th:if="${saved.userRating == null}" style="color: #888; font-style: italic;">Ще не оцінено</span>
+                        </div>
+                        <form th:action="@{/movies/update-rating/{id}(id=${saved.id})}" method="post" style="display: flex; gap: 5px;">
+                            <input type="number" step="0.1" min="1" max="10" name="userRating" placeholder="1-10" required
+                                   style="width: 60px; padding: 4px; background: #444; color: white; border: none; border-radius: 4px; font-size: 12px;">
+                            <button type="submit" style="padding: 4px 8px; background: #007bff; font-size: 12px; width: auto;">Поставити</button>
+                        </form>
+                    </div>
+
+                    <p style="font-size: 12px; color: #aaa; margin: 5px 0 15px 0;" th:text="${#strings.abbreviate(saved.overview, 80)}"></p>
+
+                    <form th:action="@{/movies/delete/{id}(id=${saved.id})}" method="post">
+                        <button type="submit" style="width: 100%; background-color: #333; padding: 8px; font-size: 14px;">Видалити</button>
+                    </form>
+                </div>
+            </div>
+            <p th:if="${#lists.isEmpty(col.movies)}" style="color: #666;">Колекція порожня.</p>
+        </div>
+    </div>
+
+</div>
+<script>
+    function toggleEdit(id) {
+        var titleBox = document.getElementById('title-box-' + id);
+        var editBox = document.getElementById('edit-box-' + id);
+
+        if (editBox.style.display === 'none') {
+            editBox.style.display = 'flex';
+            titleBox.style.display = 'none';
+        } else {
+            editBox.style.display = 'none';
+            titleBox.style.display = 'flex';
+        }
+    }
+    document.addEventListener("DOMContentLoaded", function() {
+        const sliders = document.querySelectorAll('.movies-grid');
+
+        sliders.forEach(slider => {
+            slider.addEventListener('wheel', function(e) {
+                if (e.deltaY !== 0) {
+                    e.preventDefault();
+                    this.scrollLeft += (e.deltaY * 3);
+                }
+            });
+        });
+    });
+</script>
+</body>
+</html>
